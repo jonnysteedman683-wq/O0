@@ -53,7 +53,17 @@ def _extract_wikilinks(text: str) -> list[str]:
 
 
 def _tokens(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9_]+", text.lower()))
+    """Tokenize + light stem (strip trailing s/es) for better recall."""
+    out: set[str] = set()
+    for tok in re.findall(r"[a-z0-9_]+", text.lower()):
+        out.add(tok)
+        if tok.endswith("ies") and len(tok) > 4:
+            out.add(tok[:-3] + "y")
+        elif tok.endswith("es") and len(tok) > 3:
+            out.add(tok[:-2])
+        elif tok.endswith("s") and len(tok) > 3:
+            out.add(tok[:-1])
+    return out
 
 
 class VaultIndex:

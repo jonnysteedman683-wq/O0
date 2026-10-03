@@ -9,7 +9,7 @@ from o0.identity import Identity
 from o0.ledger import Ledger
 from o0.memory import Memory
 from o0.reasoning import ReasoningLoop
-from o0.research import VaultIndex, _parse_frontmatter
+from o0.research import VaultIndex, _parse_frontmatter, _tokens
 from o0 import gitops
 
 
@@ -206,6 +206,13 @@ def test_frontmatter_parser():
     assert fm["title"] == "X"
     assert fm["category"] == "cs.LG"
     assert fm["tags"] == ["a", "b"]
+
+
+def test_tokens_stemming():
+    # plural/singular recall: "superconductor" matches "superconductors"
+    assert "superconductor" in _tokens("superconductors")
+    assert "studies" in _tokens("studies")  # ies -> y
+    assert "study" in _tokens("studies")
 
 
 def test_vault_index_and_search(vault, tmp_path):
