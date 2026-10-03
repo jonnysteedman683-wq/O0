@@ -4,6 +4,7 @@
     python -m o0.main --no-commit   run flywheel without git commits (dry run)
     python -m o0.main --ledger      verify sha256 integrity of every ledger record
     python -m o0.main --gates       run all verification gates and print capability score
+    python -m o0.main --probes      run capability probes and print measured scores
     python -m o0.main --remember "text" [--tag t]   append an episodic memory
     python -m o0.main --recall "query"               keyword recall over episodic memory
     python -m o0.main --reason "shell task"          run the reasoning loop on a task
@@ -19,6 +20,7 @@ import sys
 from .flywheel import Flywheel
 from .ledger import Ledger
 from .memory import Memory
+from .probes import run_all_probes
 from .reasoning import ReasoningLoop
 from .research import DEFAULT_ML_DIR, VaultIndex
 from .verify import capability_score, run_all_gates
@@ -91,6 +93,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(idx.topics(), indent=2))
         return 0
 
+    if "--probes" in argv:
+        probes = [p.to_dict() for p in run_all_probes(memory=memory)]
+        print(json.dumps(probes, indent=2))
+        return 0
+
     if "--ledger" in argv:
         ok, checked, broken = ledger.verify_integrity()
         print(f"ledger: {checked} records, integrity_ok={ok}")
@@ -101,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if "--gates" in argv:
         results = run_all_gates(ledger)
-        score = capability_score(results)
+        score = capability_score(results, memory=memory)
         for g in results:
             print(f"  [{'x' if g.passed else '!'}] {g.name}: {g.detail}")
         print("score:", json.dumps(score))

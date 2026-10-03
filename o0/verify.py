@@ -12,6 +12,8 @@ from pathlib import Path
 
 from .identity import Identity
 from .ledger import Ledger
+from .memory import Memory
+from .probes import run_all_probes
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 O0_DIR = REPO_ROOT / "o0"
@@ -72,16 +74,28 @@ def run_all_gates(ledger: Ledger | None = None) -> list[GateResult]:
     ]
 
 
-def capability_score(results: list[GateResult]) -> dict:
-    """v0 ledger capability metric: green gate count + ledger integrity."""
+def capability_score(results: list[GateResult], memory: Memory | None = None) -> dict:
+    """v3b ledger capability metric: green gates + ledger integrity + probe scores.
+
+    Probe scores are measured 0.0-1.0 per capability (reasoning, tool_use,
+    memory, codegen). codegen reports None until a codegen executor exists.
+    """
     gates_ok = sum(1 for g in results if g.passed)
     ledger = Ledger()
     integrity_ok, checked, broken = ledger.verify_integrity()
+
+    probes = [p.to_dict() for p in run_all_probes(memory=memory)]
+    measured = [p["score"] for p in probes if p["score"] is not None]
+    probe_total = sum(measured) if measured else 0.0
+
     return {
         "gates_passed": gates_ok,
         "gates_total": len(results),
         "ledger_integrity_ok": integrity_ok,
         "ledger_records_checked": checked,
         "ledger_broken": broken,
-        "score": gates_ok + (1 if integrity_ok and checked > 0 else 0),
+        "probes": probes,
+        "probe_score": round(probe_total, 3),
+        "score": round(gates_ok + (1 if integrity_ok and checked > 0 else 0)
+                       + probe_total, 3),
     }

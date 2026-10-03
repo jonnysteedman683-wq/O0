@@ -8,6 +8,8 @@ import pytest
 from o0.identity import Identity
 from o0.ledger import Ledger
 from o0.memory import Memory
+from o0.probes import (CodegenProbe, MemoryProbe, ReasoningProbe,
+                       ToolUseProbe, run_all_probes)
 from o0.reasoning import ReasoningLoop
 from o0.research import VaultIndex, _parse_frontmatter, _tokens
 from o0 import gitops
@@ -242,3 +244,46 @@ def test_vault_persist_reload(vault, tmp_path):
                       index_path=tmp_path / "idx3.json")
     assert idx2.load() is True
     assert len(idx2.notes) == 2
+
+
+# -- capability probes ------------------------------------------------------
+
+def test_reasoning_probe_perfect():
+    r = ReasoningProbe().run()
+    assert r.score == 1.0
+    assert r.passed == r.total == 5
+
+
+def test_tool_use_probe_perfect():
+    r = ToolUseProbe().run()
+    assert r.score == 1.0
+    assert r.passed == r.total
+
+
+def test_memory_probe_perfect(tmp_path):
+    mem = Memory(episodic_path=tmp_path / "m.jsonl", skills_dir=tmp_path / "s")
+    r = MemoryProbe(memory=mem).run()
+    assert r.score == 1.0
+    assert r.passed == r.total == 4
+
+
+def test_codegen_probe_not_measured():
+    # no executor -> honest "not measured", not a fake score
+    r = CodegenProbe().run()
+    assert r.score is None
+    assert "not measured" in r.detail
+
+
+def test_codegen_probe_with_executor():
+    r = CodegenProbe(codegen_fn=lambda spec: "print(40+2)").run()
+    assert r.score == 1.0
+
+
+def test_run_all_probes(tmp_path):
+    mem = Memory(episodic_path=tmp_path / "m.jsonl", skills_dir=tmp_path / "s")
+    results = run_all_probes(memory=mem)
+    names = {p.name for p in results}
+    assert names == {"reasoning", "tool_use", "memory", "codegen"}
+    # measured probes score 1.0; codegen is None
+    assert all(p.score == 1.0 for p in results if p.name != "codegen")
+    assert next(p for p in results if p.name == "codegen").score is None

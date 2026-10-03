@@ -1,8 +1,9 @@
-"""THE FLYWHEEL: observe -> verify -> promote (v0, git-integrated).
+"""THE FLYWHEEL: observe -> verify -> promote (v3b, probe-scored, git-integrated).
 
-At v0 O0 does not yet author its own code; it runs the promotion discipline:
-observe its state, run every verification gate, measure the capability score,
-and promote the result as a sha256-bound, append-only ledger record.
+At v3b O0 does not yet author its own code; it runs the promotion discipline:
+observe its state, run every verification gate AND capability probes, measure
+the capability score (gates + ledger integrity + probe scores), and promote
+the result as a sha256-bound, append-only ledger record.
 
 Git integration: a promotion becomes two SCOPED commits (never `git add -A`):
   1. source commit — the O0-owned dirty source (o0/, tests/, docs, skills/)
@@ -38,7 +39,7 @@ class Flywheel:
     def run_one(self) -> dict:
         observe = self.nucleus.observe()
         results = run_all_gates(self.ledger)
-        score = capability_score(results)
+        score = capability_score(results, memory=self.nucleus.memory)
 
         gates = [g.to_dict() for g in results]
         passed_all = self._constitution_satisfied(results)
@@ -50,16 +51,18 @@ class Flywheel:
             #    reference the source commit hash (append-only, written once).
             src_hash = gitops.commit(
                 gitops.SOURCE_PATHS,
-                f"O0 promote: source (gates {score['score']})",
+                f"O0 promote: source (score {score['score']})",
             )
             commits["source_commit"] = src_hash
 
         ledger_rec = self.ledger.append(
             outcome,
             {
-                "cycle": "v0-flywheel",
+                "cycle": "v3b-flywheel",
                 "score": score["score"],
                 "gates": gates,
+                "probes": score["probes"],
+                "probe_score": score["probe_score"],
                 "commits": commits,
                 "observations": {
                     "ledger_records": observe["ledger"]["records"],
