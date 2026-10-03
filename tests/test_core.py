@@ -9,6 +9,7 @@ from o0.identity import Identity
 from o0.ledger import Ledger
 from o0.memory import Memory
 from o0.reasoning import ReasoningLoop
+from o0.research import VaultIndex, _parse_frontmatter
 from o0 import gitops
 
 
@@ -174,3 +175,63 @@ def test_reasoning_bounded_retries_then_fails(tmp_path):
     r = loop.run("doomed task")
     assert r["passed"] is False
     assert r["steps"][0]["attempts"] == 3  # max_retries + 1
+
+
+# -- research index --------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def vault(tmp_path_factory):
+    """A throwaway Obsidian-style vault with frontmatter notes."""
+    root = tmp_path_factory.mktemp("vault")
+    (root / "01_Atlas").mkdir()
+    (root / "03_Sources").mkdir()
+    (root / "03_Sources" / "ML_Research_Dossiers").mkdir(parents=True)
+    (root / "03_Sources" / "ML_Research_Dossiers" / "a.md").write_text(
+        "---\ntitle: \"Evidential Deep Learning\"\ncategory: \"cs.LG\"\n"
+        "authors: \"Deep Pandey\"\nalgo_focus: \"uncertainty\"\n"
+        "tags: [evidential, uncertainty]\n---\n\n"
+        "## Abstract\nEvidential deep learning quantifies uncertainty. [[Related Note]]\n",
+        encoding="utf-8")
+    (root / "03_Sources" / "ML_Research_Dossiers" / "b.md").write_text(
+        "---\ntitle: \"Modern Mathematics of Deep Learning\"\ncategory: \"cs.LG\"\n"
+        "algo_focus: \"theory\"\n---\n\n## Abstract\nOverparametrized networks generalize.\n",
+        encoding="utf-8")
+    (root / "01_Atlas" / "c.md").write_text(
+        "---\ntitle: \"Unrelated\"\n---\n\nNot ML.\n", encoding="utf-8")
+    return root
+
+
+def test_frontmatter_parser():
+    fm = _parse_frontmatter('---\ntitle: "X"\ncategory: "cs.LG"\ntags: [a, b]\n---\nbody')
+    assert fm["title"] == "X"
+    assert fm["category"] == "cs.LG"
+    assert fm["tags"] == ["a", "b"]
+
+
+def test_vault_index_and_search(vault, tmp_path):
+    idx = VaultIndex(vault_path=vault / "03_Sources" / "ML_Research_Dossiers",
+                     index_path=tmp_path / "idx.json")
+    stats = idx.index()
+    assert stats["notes_indexed"] == 2  # only the ML dossiers dir
+    hits = idx.search("evidential uncertainty")
+    assert hits and "Evidential" in hits[0]["title"]
+    assert hits[0]["wikilinks"] == ["Related Note"]
+
+
+def test_vault_topics(vault, tmp_path):
+    idx = VaultIndex(vault_path=vault / "03_Sources" / "ML_Research_Dossiers",
+                     index_path=tmp_path / "idx2.json")
+    idx.index()
+    t = idx.topics()
+    assert t["categories"].get("cs.LG") == 2
+    assert t["algo_focus"].get("uncertainty") == 1
+
+
+def test_vault_persist_reload(vault, tmp_path):
+    idx = VaultIndex(vault_path=vault / "03_Sources" / "ML_Research_Dossiers",
+                     index_path=tmp_path / "idx3.json")
+    idx.index()
+    idx2 = VaultIndex(vault_path=vault / "03_Sources" / "ML_Research_Dossiers",
+                      index_path=tmp_path / "idx3.json")
+    assert idx2.load() is True
+    assert len(idx2.notes) == 2

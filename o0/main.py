@@ -7,6 +7,9 @@
     python -m o0.main --remember "text" [--tag t]   append an episodic memory
     python -m o0.main --recall "query"               keyword recall over episodic memory
     python -m o0.main --reason "shell task"          run the reasoning loop on a task
+    python -m o0.main --index-vault [path]           index the Obsidian vault (default: HORIZONTAL ML dossiers)
+    python -m o0.main --research "query"             search the vault index for ML research
+    python -m o0.main --topics                        show vault index topic aggregates
 """
 from __future__ import annotations
 
@@ -17,6 +20,7 @@ from .flywheel import Flywheel
 from .ledger import Ledger
 from .memory import Memory
 from .reasoning import ReasoningLoop
+from .research import DEFAULT_ML_DIR, VaultIndex
 from .verify import capability_score, run_all_gates
 
 
@@ -57,6 +61,35 @@ def main(argv: list[str] | None = None) -> int:
         result = ReasoningLoop().run(argv[i + 1])
         print(json.dumps(result, indent=2))
         return 0 if result["passed"] else 1
+
+    if "--index-vault" in argv:
+        i = argv.index("--index-vault")
+        path = argv[i + 1] if i + 1 < len(argv) and not argv[i + 1].startswith("--") else DEFAULT_ML_DIR
+        idx = VaultIndex(vault_path=path)
+        stats = idx.index()
+        print(json.dumps(stats, indent=2))
+        return 0
+
+    if "--research" in argv:
+        i = argv.index("--research")
+        if i + 1 >= len(argv):
+            print("usage: --research <query>")
+            return 2
+        idx = VaultIndex()
+        if not idx.load():
+            print("index not built yet; run --index-vault first", file=sys.stderr)
+            return 2
+        hits = idx.search(argv[i + 1])
+        print(json.dumps(hits, indent=2))
+        return 0
+
+    if "--topics" in argv:
+        idx = VaultIndex()
+        if not idx.load():
+            print("index not built yet; run --index-vault first", file=sys.stderr)
+            return 2
+        print(json.dumps(idx.topics(), indent=2))
+        return 0
 
     if "--ledger" in argv:
         ok, checked, broken = ledger.verify_integrity()
