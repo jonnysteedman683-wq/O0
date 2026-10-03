@@ -25,8 +25,10 @@ SOURCE_PATHS = [
     "CONSTITUTION.md",
     "BLUEPRINT.md",
     "README.md",
+    "AGENTS.md",
     "IDEA.md",
     ".gitignore",
+    ".antigravitycli",
 ]
 STATE_PATHS = ["state"]
 
