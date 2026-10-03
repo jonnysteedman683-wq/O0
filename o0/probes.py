@@ -20,8 +20,10 @@ from __future__ import annotations
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
+from .agency import AGENTS_DIR, AgentSpec, Orchestrator
 from .memory import Memory
 
 
@@ -162,4 +164,26 @@ def run_all_probes(memory: Memory | None = None) -> list[ProbeResult]:
         ToolUseProbe().run(),
         MemoryProbe(memory=memory).run(),
         CodegenProbe().run(),
+        AgencyProbe().run(),
     ]
+
+
+# -- agency (O0's unique capability: create + control AIs) ------------------
+class AgencyProbe(Probe):
+    name = "agency"
+
+    def __init__(self, agents_dir: Path | None = None):
+        self.agents_dir = agents_dir
+
+    def run(self) -> ProbeResult:
+        """Create an agent, dispatch a task to it, check it succeeds."""
+        orch = Orchestrator(agents_dir=self.agents_dir or AGENTS_DIR)
+        agent = orch.create_agent(AgentSpec(
+            name="probe_agent",
+            role="probe",
+            constitution="probe-only",
+        ))
+        res = orch.dispatch("probe_agent", "echo probe")
+        ok = res.get("ok") is True and res.get("result", {}).get("passed") is True
+        return ProbeResult(self.name, 1.0 if ok else 0.0, 1 if ok else 0, 1,
+                           "created agent + dispatched task" if ok else "agency failed")

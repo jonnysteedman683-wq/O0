@@ -5,10 +5,11 @@ import subprocess
 
 import pytest
 
+from o0.agency import AgentSpec, AgentFactory, AgentRegistry, Orchestrator, StackConnector
 from o0.identity import Identity
 from o0.ledger import Ledger
 from o0.memory import Memory
-from o0.probes import (CodegenProbe, MemoryProbe, ReasoningProbe,
+from o0.probes import (AgencyProbe, CodegenProbe, MemoryProbe, ReasoningProbe,
                        ToolUseProbe, run_all_probes)
 from o0.reasoning import ReasoningLoop
 from o0.research import VaultIndex, _parse_frontmatter, _tokens
@@ -283,7 +284,56 @@ def test_run_all_probes(tmp_path):
     mem = Memory(episodic_path=tmp_path / "m.jsonl", skills_dir=tmp_path / "s")
     results = run_all_probes(memory=mem)
     names = {p.name for p in results}
-    assert names == {"reasoning", "tool_use", "memory", "codegen"}
+    assert names == {"reasoning", "tool_use", "memory", "codegen", "agency"}
     # measured probes score 1.0; codegen is None
     assert all(p.score == 1.0 for p in results if p.name != "codegen")
     assert next(p for p in results if p.name == "codegen").score is None
+
+
+# -- agency (O0 creates + controls AIs) ------------------------------------
+
+@pytest.fixture(scope="module")
+def agency(tmp_path_factory):
+    d = tmp_path_factory.mktemp("agency")
+    ledger = Ledger(d / "ledger.jsonl")
+    agents_dir = d / "agents"
+    return Orchestrator(ledger=ledger, agents_dir=agents_dir)
+
+
+def test_agent_factory_creates_and_registers(agency):
+    agent = agency.create_agent(AgentSpec(name="scout", role="recon"))
+    assert agent.module_path.exists()
+    # registered in the ledger as an agent_created record
+    recs = agency.factory.ledger.read()
+    assert any(r["kind"] == "agent_created" and r["agent"] == "scout" for r in recs)
+
+
+def test_agent_registry_lists_and_loads(agency):
+    agency.create_agent(AgentSpec(name="worker", role="executor"))
+    names = [a["name"] for a in agency.registry.list()]
+    assert "worker" in names
+    assert agency.registry.load("worker") is not None
+    assert agency.registry.load("nope") is None
+
+
+def test_orchestrator_dispatch(agency):
+    agency.create_agent(AgentSpec(name="runner", role="task"))
+    res = agency.dispatch("runner", "echo hello")
+    assert res["ok"] is True
+    assert res["result"]["passed"] is True
+
+
+def test_stack_connector_fail_open(tmp_path):
+    # reachable platform
+    c = StackConnector("HORIZONTAL", "C:/Users/jonny/OneDrive/Desktop/HORIZONTAL")
+    assert c.status()["reachable"] is True
+    # missing platform -> fail-open, not an error
+    c2 = StackConnector("MISSING", str(tmp_path / "nope"))
+    assert c2.status()["reachable"] is False
+    assert c2.dispatch("x")["ok"] is False
+
+
+def test_agency_probe(tmp_path):
+    r = AgencyProbe(agents_dir=tmp_path / "agents").run()
+    assert r.score == 1.0
+    assert "created agent" in r.detail

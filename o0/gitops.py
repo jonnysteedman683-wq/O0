@@ -21,6 +21,7 @@ SOURCE_PATHS = [
     "o0",
     "tests",
     "skills",
+    "agents",
     "CONSTITUTION.md",
     "BLUEPRINT.md",
     "README.md",

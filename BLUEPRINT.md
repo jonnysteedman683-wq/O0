@@ -71,7 +71,7 @@ This is honest, weak, and extendable — not a fake AGI score. Later tiers add r
 - **v2 — Reasoning loop (this build):** plan → execute → verify → **reflect** → (bounded retry | accept), across arbitrary shell tasks. `*`
 - **v3 — Research index (this build):** indexes the HORIZONTAL Obsidian vault (ML dossiers) — frontmatter, wikilinks, keyword/tag search, topic aggregates. `*`
 - **v3b — Real capability probes (this build):** measured reasoning/tool_use/memory scores feed the ledger; codegen pluggable (honest "not measured" until v5). `*`
-- **v4 — Cross-stack agency:** O0 drives VORPAL/MARKUS/HORIZONTAL/THE ORDER/axiom_engine as one organism via unified memory + routing.
+- **v4 — Cross-stack agency (this build):** O0 CREATES AIs (agent factory → runnable module + ledger registration) and controls them (orchestrator dispatch); probes VORPAL/MARKUS/HORIZONTAL/THE ORDER/axiom_engine (fail-open). `*`
 - **v5 — Self-hosting autonomy:** O0 proposes, implements, verifies, and promotes its own upgrades with minimal operator gates, still constitution-bound.
 
 ## 7. Honest limits

@@ -11,12 +11,16 @@
     python -m o0.main --index-vault [path]           index the Obsidian vault (default: HORIZONTAL ML dossiers)
     python -m o0.main --research "query"             search the vault index for ML research
     python -m o0.main --topics                        show vault index topic aggregates
+    python -m o0.main --create-agent <name> <role>   create a new agent (O0 creates AIs)
+    python -m o0.main --dispatch <agent> <task>      dispatch a task to a created agent
+    python -m o0.main --stack                        probe cross-stack platform availability
 """
 from __future__ import annotations
 
 import json
 import sys
 
+from .agency import AgentSpec, Orchestrator
 from .flywheel import Flywheel
 from .ledger import Ledger
 from .memory import Memory
@@ -63,6 +67,31 @@ def main(argv: list[str] | None = None) -> int:
         result = ReasoningLoop().run(argv[i + 1])
         print(json.dumps(result, indent=2))
         return 0 if result["passed"] else 1
+
+    if "--create-agent" in argv:
+        i = argv.index("--create-agent")
+        if i + 2 >= len(argv):
+            print("usage: --create-agent <name> <role>")
+            return 2
+        orch = Orchestrator(ledger=ledger)
+        agent = orch.create_agent(AgentSpec(name=argv[i + 1], role=argv[i + 2]))
+        print(json.dumps({"created": agent.name, "path": str(agent.module_path)}))
+        return 0
+
+    if "--dispatch" in argv:
+        i = argv.index("--dispatch")
+        if i + 2 >= len(argv):
+            print("usage: --dispatch <agent> <task>")
+            return 2
+        orch = Orchestrator(ledger=ledger)
+        res = orch.dispatch(argv[i + 1], argv[i + 2])
+        print(json.dumps(res, indent=2))
+        return 0 if res.get("ok") else 1
+
+    if "--stack" in argv:
+        orch = Orchestrator(ledger=ledger)
+        print(json.dumps(orch.stack_status(), indent=2))
+        return 0
 
     if "--index-vault" in argv:
         i = argv.index("--index-vault")
