@@ -39,8 +39,19 @@ def _parse_frontmatter(text: str) -> dict[str, Any]:
     return fm
 
 
-REPO_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
-DEFAULT_VAULT_PATH = Path("C:/Users/jonny/OneDrive/Desktop/O0-DIRECTORY")
+CANDIDATE_VAULT_PATHS = [
+    Path("C:/Users/jonny/OneDrive/Desktop/O0/O0-DIRECTORY/O0-DIRECTORY"),
+    Path("C:/Users/jonny/OneDrive/Desktop/O0/O0-DIRECTORY"),
+    Path("C:/Users/jonny/OneDrive/Desktop/O0-DIRECTORY"),
+]
+
+def _resolve_default_vault() -> Path:
+    for p in CANDIDATE_VAULT_PATHS:
+        if p.exists():
+            return p
+    return CANDIDATE_VAULT_PATHS[0]
+
+DEFAULT_VAULT_PATH = _resolve_default_vault()
 
 
 @dataclass
