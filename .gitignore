@@ -1,0 +1,10 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Nested git worktree artifacts
+.worktrees/
+
+# O0 runtime state is durable by design (append-only ledger).
+# Nothing else to ignore yet.
