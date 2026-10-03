@@ -8,6 +8,7 @@ import pytest
 from o0.identity import Identity
 from o0.ledger import Ledger
 from o0.memory import Memory
+from o0.reasoning import ReasoningLoop
 from o0 import gitops
 
 
@@ -129,3 +130,47 @@ def test_gitops_commit_scoped(git_repo):
 def test_gitops_commit_nothing(git_repo):
     # clean path -> returns None, no commit
     assert gitops.commit(["tracked.txt"], "noop", repo_root=git_repo) is None
+
+
+# -- reasoning loop --------------------------------------------------------
+
+class _FlakyExecutor:
+    """Fails the first `fail_times` calls, then succeeds."""
+
+    def __init__(self, fail_times: int):
+        self.fail_times = fail_times
+        self.calls = 0
+
+    def execute(self, task: str) -> tuple[int, str]:
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            return 1, "boom"
+        return 0, "ok"
+
+
+def test_reasoning_passes_first_try(tmp_path):
+    mem = Memory(episodic_path=tmp_path / "m.jsonl", skills_dir=tmp_path / "s")
+    loop = ReasoningLoop(memory=mem, executor=_FlakyExecutor(0))
+    r = loop.run("echo hi")
+    assert r["passed"] is True
+    assert r["steps"][0]["attempts"] == 1
+
+
+def test_reasoning_retries_then_succeeds(tmp_path):
+    # THE reflect step: a failure is not discarded, it is retried (bounded)
+    mem = Memory(episodic_path=tmp_path / "m.jsonl", skills_dir=tmp_path / "s")
+    loop = ReasoningLoop(memory=mem, executor=_FlakyExecutor(2), max_retries=3)
+    r = loop.run("flaky task")
+    assert r["passed"] is True
+    assert r["steps"][0]["attempts"] == 3  # fail, fail, succeed
+    # the failure lesson was stored to memory
+    assert mem.count() >= 3
+
+
+def test_reasoning_bounded_retries_then_fails(tmp_path):
+    # never succeeds -> bounded retries, then honest failure
+    mem = Memory(episodic_path=tmp_path / "m.jsonl", skills_dir=tmp_path / "s")
+    loop = ReasoningLoop(memory=mem, executor=_FlakyExecutor(999), max_retries=2)
+    r = loop.run("doomed task")
+    assert r["passed"] is False
+    assert r["steps"][0]["attempts"] == 3  # max_retries + 1

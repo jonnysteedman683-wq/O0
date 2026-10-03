@@ -6,6 +6,7 @@
     python -m o0.main --gates       run all verification gates and print capability score
     python -m o0.main --remember "text" [--tag t]   append an episodic memory
     python -m o0.main --recall "query"               keyword recall over episodic memory
+    python -m o0.main --reason "shell task"          run the reasoning loop on a task
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import sys
 from .flywheel import Flywheel
 from .ledger import Ledger
 from .memory import Memory
+from .reasoning import ReasoningLoop
 from .verify import capability_score, run_all_gates
 
 
@@ -46,6 +48,15 @@ def main(argv: list[str] | None = None) -> int:
         hits = memory.recall(argv[i + 1])
         print(json.dumps(hits, indent=2))
         return 0
+
+    if "--reason" in argv:
+        i = argv.index("--reason")
+        if i + 1 >= len(argv):
+            print("usage: --reason <shell task>")
+            return 2
+        result = ReasoningLoop().run(argv[i + 1])
+        print(json.dumps(result, indent=2))
+        return 0 if result["passed"] else 1
 
     if "--ledger" in argv:
         ok, checked, broken = ledger.verify_integrity()
