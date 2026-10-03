@@ -39,6 +39,10 @@ def _parse_frontmatter(text: str) -> dict[str, Any]:
     return fm
 
 
+REPO_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
+DEFAULT_VAULT_PATH = Path("C:/Users/jonny/OneDrive/Desktop/O0-DIRECTORY")
+
+
 @dataclass
 class VaultNode:
     name: str
@@ -53,7 +57,7 @@ class VaultNode:
 class SpatialVaultNavigator:
     """Graph navigator for Obsidian memory vault using Quick Paths and Priority gradients."""
 
-    def __init__(self, vault_root: Path | str):
+    def __init__(self, vault_root: Path | str = DEFAULT_VAULT_PATH):
         self.vault_root = Path(vault_root)
         self.nodes: dict[str, VaultNode] = {}
         self.station_map: dict[str, list[str]] = {}
