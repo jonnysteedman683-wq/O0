@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from o0.probes import Probe, ProbeResult
 
+from .planning import PlanningProbe
 from .research import ResearchProbe
 
 # Registry of extension probes: name -> Probe class.
 EXTENSION_PROBES: dict[str, type[Probe]] = {
     ResearchProbe.name: ResearchProbe,
+    PlanningProbe.name: PlanningProbe,
 }
 
 
@@ -16,4 +18,4 @@ def run_extension_probes() -> list[ProbeResult]:
     return [cls().run() for cls in EXTENSION_PROBES.values()]
 
 
-__all__ = ["EXTENSION_PROBES", "ResearchProbe", "run_extension_probes"]
+__all__ = ["EXTENSION_PROBES", "ResearchProbe", "PlanningProbe", "run_extension_probes"]
