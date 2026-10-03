@@ -14,11 +14,13 @@
     python -m o0.main --create-agent <name> <role>   create a new agent (O0 creates AIs)
     python -m o0.main --dispatch <agent> <task>      dispatch a task to a created agent
     python -m o0.main --stack                        probe cross-stack platform availability
+    python -m o0.main --selfhost <candidate.json>    run v5 self-hosting on a candidate
 """
 from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 from .agency import AgentSpec, Orchestrator
 from .flywheel import Flywheel
@@ -27,6 +29,7 @@ from .memory import Memory
 from .probes import run_all_probes
 from .reasoning import ReasoningLoop
 from .research import DEFAULT_ML_DIR, VaultIndex
+from .selfhost import Candidate, SelfHost
 from .verify import capability_score, run_all_gates
 
 
@@ -67,6 +70,19 @@ def main(argv: list[str] | None = None) -> int:
         result = ReasoningLoop().run(argv[i + 1])
         print(json.dumps(result, indent=2))
         return 0 if result["passed"] else 1
+
+    if "--selfhost" in argv:
+        i = argv.index("--selfhost")
+        if i + 1 >= len(argv):
+            print("usage: --selfhost <candidate.json>")
+            return 2
+        data = json.loads(Path(argv[i + 1]).read_text(encoding="utf-8"))
+        cand = Candidate(name=data["name"], target=data["target"],
+                         old=data["old"], new=data["new"],
+                         rationale=data.get("rationale", ""))
+        result = SelfHost(ledger=ledger, commit="--no-commit" not in argv).run(cand)
+        print(json.dumps(result, indent=2))
+        return 0 if result["outcome"] == "promote" else 1
 
     if "--create-agent" in argv:
         i = argv.index("--create-agent")

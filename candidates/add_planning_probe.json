@@ -1,0 +1,7 @@
+{
+  "name": "add-planning-probe",
+  "target": "o0/probes.py",
+  "rationale": "Add planning probe",
+  "old": "class CodegenProbe(Probe):",
+  "new": "class PlanningProbe(Probe):\n    name = \"planning\"\n\n    def run(self) -> ProbeResult:\n        return ProbeResult(self.name, 0.0, 0, 1, \"placeholder\")\n\n\nclass CodegenProbe(Probe):"
+}

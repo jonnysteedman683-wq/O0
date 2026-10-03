@@ -13,6 +13,7 @@ from o0.probes import (AgencyProbe, CodegenProbe, MemoryProbe, ReasoningProbe,
                        ToolUseProbe, run_all_probes)
 from o0.reasoning import ReasoningLoop
 from o0.research import VaultIndex, _parse_frontmatter, _tokens
+from o0.selfhost import Candidate, SelfHost
 from o0 import gitops
 
 
@@ -337,3 +338,62 @@ def test_agency_probe(tmp_path):
     r = AgencyProbe(agents_dir=tmp_path / "agents").run()
     assert r.score == 1.0
     assert "created agent" in r.detail
+
+
+# -- self-hosting (v5) ------------------------------------------------------
+
+def _fake_scorer(scratch_score: float, scratch_ok: bool = True):
+    """A scorer that returns `scratch_score` for a scratch copy, baseline 4.0."""
+    def scorer(root):
+        if str(root).endswith("o0") and "tmp" in str(root):
+            return {"score": scratch_score, "harness_ok": scratch_ok,
+                    "compile_ok": True, "probe_score": scratch_score - 2.0}
+        return {"score": 4.0, "harness_ok": True, "compile_ok": True,
+                "probe_score": 2.0}
+    return scorer
+
+
+def test_selfhost_promotes_improvement(tmp_path):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+    sh = SelfHost(ledger=ledger, commit=False,
+                  scorer=_fake_scorer(scratch_score=5.0))
+    cand = Candidate(name="improve", target="o0/verify.py",
+                     old="def capability_score", new="def capability_score_improved")
+    r = sh.run(cand)
+    assert r["outcome"] == "promote"
+    assert r["candidate_score"] > r["baseline_score"]
+    # recorded in ledger
+    assert any(x["kind"] == "promote" and x["candidate"] == "improve"
+               for x in ledger.read())
+
+
+def test_selfhost_rejects_regression(tmp_path):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+    sh = SelfHost(ledger=ledger, commit=False,
+                  scorer=_fake_scorer(scratch_score=3.0))
+    cand = Candidate(name="regress", target="o0/verify.py",
+                     old="def capability_score", new="def capability_score_bad")
+    r = sh.run(cand)
+    assert r["outcome"] == "reject"
+    assert any(x["kind"] == "reject" and x["candidate"] == "regress"
+               for x in ledger.read())
+
+
+def test_selfhost_rejects_missing_target(tmp_path):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+    sh = SelfHost(ledger=ledger, commit=False, scorer=_fake_scorer(5.0))
+    cand = Candidate(name="ghost", target="o0/nope.py",
+                     old="x", new="y")
+    r = sh.run(cand)
+    assert r["outcome"] == "reject"
+    assert "target missing" in r["reason"]
+
+
+def test_selfhost_rejects_old_not_found(tmp_path):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+    sh = SelfHost(ledger=ledger, commit=False, scorer=_fake_scorer(5.0))
+    cand = Candidate(name="nomatch", target="o0/verify.py",
+                     old="this text does not exist anywhere", new="y")
+    r = sh.run(cand)
+    assert r["outcome"] == "reject"
+    assert "old text not found" in r["reason"]

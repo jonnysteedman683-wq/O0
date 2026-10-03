@@ -42,3 +42,10 @@
 {"content": "gamma is the third letter", "kind": "probe", "tags": ["probe", "gamma"], "ts": "2026-10-03T18:10:16+00:00"}
 {"content": "delta is the fourth letter", "kind": "probe", "tags": ["probe", "delta"], "ts": "2026-10-03T18:10:16+00:00"}
 {"content": "task succeeded: echo probe", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T18:10:16+00:00"}
+{"content": "task succeeded: echo probe", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T18:24:37+00:00"}
+{"content": "task succeeded: echo hello", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T18:24:37+00:00"}
+{"content": "task succeeded: echo probe", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T18:24:38+00:00"}
+{"content": "task succeeded: echo probe", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T20:32:22+00:00"}
+{"content": "task succeeded: echo hello", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T20:32:23+00:00"}
+{"content": "task succeeded: echo probe", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T20:32:24+00:00"}
+{"content": "task succeeded: python -c \"print('unit_test_passed')\"", "kind": "success", "tags": ["reasoning", "success"], "ts": "2026-10-03T22:01:13+00:00"}

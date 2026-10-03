@@ -1,0 +1,7 @@
+{
+  "name": "add-planning-probe",
+  "target": "o0/probes.py",
+  "rationale": "Add a planning capability probe that measures task-decomposition; raises the measured capability score.",
+  "old": "def run_all_probes(memory: Memory | None = None) -> list[ProbeResult]:\n    return [\n        ReasoningProbe().run(),\n        ToolUseProbe().run(),\n        MemoryProbe(memory=memory).run(),\n        CodegenProbe().run(),\n        AgencyProbe().run(),\n    ]",
+  "new": "def run_all_probes(memory: Memory | None = None) -> list[ProbeResult]:\n    return [\n        ReasoningProbe().run(),\n        ToolUseProbe().run(),\n        MemoryProbe(memory=memory).run(),\n        CodegenProbe().run(),\n        AgencyProbe().run(),\n        PlanningProbe().run(),\n    ]\n\n\nclass PlanningProbe(Probe):\n    \"\"\"Measures task-decomposition: a fixed suite of plan steps that must\n    each produce correct output. Deterministic and reproducible.\"\"\"\n    name = \"planning\"\n\n    def run(self) -> ProbeResult:\n        steps = [\n            (\"print(1+1)\", \"2\"),\n            (\"print(3*3)\", \"9\"),\n            (\"print(10-4)\", \"6\"),\n        ]\n        passed = 0\n        for code, expected in steps:\n            rc, out = _run_python(code)\n            if rc == 0 and out.strip() == expected:\n                passed += 1\n        total = len(steps)\n        return ProbeResult(self.name, passed / total, passed, total,\n                           f\"{passed}/{total} plan steps correct\")"
+}
