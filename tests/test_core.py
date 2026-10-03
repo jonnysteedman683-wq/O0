@@ -1,12 +1,14 @@
 """O0 capability harness (v0). Green = a promotion may be recorded."""
 import hashlib
 import json
+import subprocess
 
 import pytest
 
 from o0.identity import Identity
 from o0.ledger import Ledger
 from o0.memory import Memory
+from o0 import gitops
 
 
 @pytest.fixture(scope="module")
@@ -89,3 +91,41 @@ def test_memory_procedural_skill(memory):
     p = memory.write_skill("verify-gates", "# Verify gates\nRun pytest before promote.")
     assert p.exists()
     assert "verify-gates.md" in memory.list_skills()
+
+
+# -- gitops ----------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def git_repo(tmp_path_factory):
+    """A throwaway git repo with user configured, one committed file."""
+    root = tmp_path_factory.mktemp("gitrepo")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "o0@test"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "O0"], check=True)
+    (root / "tracked.txt").write_text("v1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "init"], check=True)
+    return root
+
+
+def test_gitops_dirty_paths(git_repo):
+    (git_repo / "tracked.txt").write_text("v2\n", encoding="utf-8")
+    (git_repo / "new.txt").write_text("x\n", encoding="utf-8")
+    dirty = gitops.dirty_paths(["tracked.txt", "new.txt", "missing.txt"], repo_root=git_repo)
+    assert set(dirty) == {"tracked.txt", "new.txt"}
+
+
+def test_gitops_commit_scoped(git_repo):
+    # two dirty files, but commit only one -> the other stays uncommitted
+    (git_repo / "tracked.txt").write_text("v3\n", encoding="utf-8")
+    (git_repo / "unrelated.txt").write_text("keep me\n", encoding="utf-8")
+    h = gitops.commit(["tracked.txt"], "scoped", repo_root=git_repo)
+    assert h and len(h) == 40
+    # unrelated file must NOT be swept in
+    assert (git_repo / "unrelated.txt").exists()
+    assert "unrelated.txt" in gitops.dirty_paths(["unrelated.txt"], repo_root=git_repo)
+
+
+def test_gitops_commit_nothing(git_repo):
+    # clean path -> returns None, no commit
+    assert gitops.commit(["tracked.txt"], "noop", repo_root=git_repo) is None

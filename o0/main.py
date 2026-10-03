@@ -1,6 +1,7 @@
 """O0 CLI.
 
     python -m o0.main               run one flywheel iteration (observe->verify->promote)
+    python -m o0.main --no-commit   run flywheel without git commits (dry run)
     python -m o0.main --ledger      verify sha256 integrity of every ledger record
     python -m o0.main --gates       run all verification gates and print capability score
     python -m o0.main --remember "text" [--tag t]   append an episodic memory
@@ -63,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # default: run the flywheel
-    result = Flywheel(ledger=ledger).run_one()
+    result = Flywheel(ledger=ledger, commit="--no-commit" not in argv).run_one()
     print(json.dumps(result, indent=2))
     return 0 if result["outcome"] == "promote" else 1
 
