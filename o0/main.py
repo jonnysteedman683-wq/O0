@@ -3,6 +3,8 @@
     python -m o0.main               run one flywheel iteration (observe->verify->promote)
     python -m o0.main --ledger      verify sha256 integrity of every ledger record
     python -m o0.main --gates       run all verification gates and print capability score
+    python -m o0.main --remember "text" [--tag t]   append an episodic memory
+    python -m o0.main --recall "query"               keyword recall over episodic memory
 """
 from __future__ import annotations
 
@@ -11,12 +13,38 @@ import sys
 
 from .flywheel import Flywheel
 from .ledger import Ledger
+from .memory import Memory
 from .verify import capability_score, run_all_gates
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     ledger = Ledger()
+    memory = Memory()
+
+    if "--remember" in argv:
+        i = argv.index("--remember")
+        if i + 1 >= len(argv):
+            print("usage: --remember <text> [--tag t]")
+            return 2
+        text = argv[i + 1]
+        tags = []
+        if "--tag" in argv:
+            j = argv.index("--tag")
+            if j + 1 < len(argv):
+                tags = [argv[j + 1]]
+        rec = memory.remember("episodic", text, tags=tags)
+        print(json.dumps(rec))
+        return 0
+
+    if "--recall" in argv:
+        i = argv.index("--recall")
+        if i + 1 >= len(argv):
+            print("usage: --recall <query>")
+            return 2
+        hits = memory.recall(argv[i + 1])
+        print(json.dumps(hits, indent=2))
+        return 0
 
     if "--ledger" in argv:
         ok, checked, broken = ledger.verify_integrity()

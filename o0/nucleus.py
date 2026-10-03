@@ -8,14 +8,16 @@ from __future__ import annotations
 
 from .identity import Identity
 from .ledger import Ledger
+from .memory import Memory
 
 
 class Nucleus:
     """O0's inner loop contract: OBSERVE -> report capabilities."""
 
-    def __init__(self, ledger: Ledger | None = None):
+    def __init__(self, ledger: Ledger | None = None, memory: Memory | None = None):
         self.identity = Identity()
         self.ledger = ledger or Ledger()
+        self.memory = memory or Memory()
 
     def observe(self) -> dict:
         """Return a verifiable snapshot of O0's current state."""
@@ -23,6 +25,7 @@ class Nucleus:
         records = self.ledger.read()
         return {
             "identity": self.identity.manifest(),
+            "memory": self.memory.stats(),
             "ledger": {
                 "path": str(self.ledger.path),
                 "records": len(records),

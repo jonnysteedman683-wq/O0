@@ -67,7 +67,7 @@ This is honest, weak, and extendable — not a fake AGI score. Later tiers add r
 ## 6. Roadmap
 
 - **v0 — Foundation (this build):** embodied identity, append-only ledger, verification gate, working flywheel. `*`
-- **v1 — Memory:** durable procedural + episodic memory, recall, registry in `skills/`.
+- **v1 — Memory (this build):** durable episodic + procedural memory, keyword recall, `skills/` registry. `*`
 - **v2 — Reasoning loop:** plan → execute → verify across arbitrary tasks, not just self-code.
 - **v3 — Real capability probes:** measured probes (reasoning, codegen, memory, tool-use) feeding the ledger instead of gate counts.
 - **v4 — Cross-stack agency:** O0 drives VORPAL/MARKUS/HORIZONTAL/THE ORDER/axiom_engine as one organism via unified memory + routing.

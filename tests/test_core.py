@@ -6,6 +6,7 @@ import pytest
 
 from o0.identity import Identity
 from o0.ledger import Ledger
+from o0.memory import Memory
 
 
 @pytest.fixture(scope="module")
@@ -58,3 +59,33 @@ def test_json_load_roundtrip(ledger):
     rec = ledger.append("test", {"x": None, "y": [1, 2]})
     re_read = json.loads(json.dumps(rec))
     assert re_read["kind"] == "test"
+
+
+# -- memory ----------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def memory(tmp_path_factory):
+    d = tmp_path_factory.mktemp("mem")
+    return Memory(episodic_path=d / "mem.jsonl", skills_dir=d / "skills")
+
+
+def test_memory_remember_and_count(memory):
+    memory.remember("observation", "the flywheel promoted cleanly", tags=["flywheel"])
+    memory.remember("observation", "ledger integrity held", tags=["ledger"])
+    assert memory.count() == 2
+
+
+def test_memory_recall_keyword(memory):
+    memory.remember("observation", "constitution audit passed", tags=["constitution"])
+    hits = memory.recall("constitution audit")
+    assert hits and "constitution" in hits[0]["content"]
+
+
+def test_memory_recall_no_match(memory):
+    assert memory.recall("zzz_nonexistent_topic") == []
+
+
+def test_memory_procedural_skill(memory):
+    p = memory.write_skill("verify-gates", "# Verify gates\nRun pytest before promote.")
+    assert p.exists()
+    assert "verify-gates.md" in memory.list_skills()
