@@ -65,3 +65,48 @@ def test_spatial_vault_indexing_and_equidistant_routing(tmp_path: Path):
     assert "ML_STATION" in names
     assert "NN_TEST_BRIDGE" in names
     assert "RANDOM_PAPER" not in names  # Filtered out by priority gradient!
+
+
+def test_live_o0_directory_topology():
+    """Verify live O0-DIRECTORY vault topology, cores, and equidistant bridges."""
+    navigator = SpatialVaultNavigator()
+    stats = navigator.index_vault()
+
+    # Must find all our created stations and nodes
+    assert stats["indexed"] >= 10
+    assert stats["stations"] >= 4
+
+    # 1. Verify Core Stations exist at Priority 10
+    ml_core = navigator.get_station_core("ML")
+    assert ml_core is not None
+    assert ml_core.priority == 10
+
+    tests_core = navigator.get_station_core("TESTS")
+    assert tests_core is not None
+    assert tests_core.priority == 10
+
+    reasoning_core = navigator.get_station_core("REASONING")
+    assert reasoning_core is not None
+    assert reasoning_core.priority == 10
+
+    systems_core = navigator.get_station_core("SYSTEMS")
+    assert systems_core is not None
+    assert systems_core.priority == 10
+
+    # 2. Verify Equidistant Midpoint Bridge: NEURAL_NETWORK_TESTS (P5)
+    nn_bridge = navigator.nodes.get("NEURAL_NETWORK_TESTS")
+    assert nn_bridge is not None
+    assert nn_bridge.priority == 5
+
+    # 1 hop from ML_STATION_MAP
+    route_from_ml = navigator.route_quick_path("ML_STATION_MAP", "NEURAL_NETWORK_TESTS")
+    assert route_from_ml == ["ML_STATION_MAP", "NEURAL_NETWORK_TESTS"]
+
+    # 1 hop from TESTS_STATION_MAP
+    route_from_tests = navigator.route_quick_path("TESTS_STATION_MAP", "NEURAL_NETWORK_TESTS")
+    assert route_from_tests == ["TESTS_STATION_MAP", "NEURAL_NETWORK_TESTS"]
+
+    # 2-hop traversal between stations via bridge
+    route_ml_to_tests = navigator.route_quick_path("ML_STATION_MAP", "TESTS_STATION_MAP")
+    assert len(route_ml_to_tests) <= 3
+
