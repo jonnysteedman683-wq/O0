@@ -8,9 +8,11 @@
     python -m o0.main --remember "text" [--tag t]   append an episodic memory
     python -m o0.main --recall "query"               keyword recall over episodic memory
     python -m o0.main --reason "shell task"          run the reasoning loop on a task
-    python -m o0.main --index-vault [path]           index the Obsidian vault (default: HORIZONTAL ML dossiers)
-    python -m o0.main --research "query"             search the vault index for ML research
-    python -m o0.main --topics                        show vault index topic aggregates
+    python -m o0.main --index-vault [path]           rebuild O0-DIRECTORY index (or supplied path)
+    python -m o0.main --research "query"             search O0-DIRECTORY's local memory index
+    python -m o0.main --ml-research "query"          search HORIZONTAL for ML/local research
+    python -m o0.main --horizontal-recall "query"    explicitly search HORIZONTAL's hybrid index
+    python -m o0.main --topics                        show O0-DIRECTORY index topic aggregates
     python -m o0.main --create-agent <name> <role>   create a new agent (O0 creates AIs)
     python -m o0.main --dispatch <agent> <task>      dispatch a task to a created agent
     python -m o0.main --stack                        probe cross-stack platform availability
@@ -28,7 +30,8 @@ from .ledger import Ledger
 from .memory import Memory
 from .probes import run_all_probes
 from .reasoning import ReasoningLoop
-from .research import DEFAULT_ML_DIR, VaultIndex
+from .research import (DEFAULT_ML_DIR, HorizontalRecall, VaultIndex,
+                       running_from_horizontal)
 from .selfhost import Candidate, SelfHost
 from .verify import capability_score, run_all_gates
 
@@ -117,15 +120,28 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(stats, indent=2))
         return 0
 
+    horizontal_flag = next((flag for flag in ("--horizontal-recall", "--ml-research")
+                            if flag in argv), None)
+    if horizontal_flag:
+        i = argv.index(horizontal_flag)
+        if i + 1 >= len(argv):
+            print(f"usage: {horizontal_flag} <query>")
+            return 2
+        hits = HorizontalRecall().search(argv[i + 1])
+        print(json.dumps(hits, indent=2))
+        return 0
+
     if "--research" in argv:
         i = argv.index("--research")
         if i + 1 >= len(argv):
             print("usage: --research <query>")
             return 2
+        if running_from_horizontal():
+            hits = HorizontalRecall().search(argv[i + 1])
+            print(json.dumps(hits, indent=2))
+            return 0
         idx = VaultIndex()
-        if not idx.load():
-            print("index not built yet; run --index-vault first", file=sys.stderr)
-            return 2
+        idx.index()  # refresh O0-DIRECTORY so new notes are immediately searchable
         hits = idx.search(argv[i + 1])
         print(json.dumps(hits, indent=2))
         return 0

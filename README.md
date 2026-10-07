@@ -11,7 +11,18 @@ cd O0
 python -m pytest tests/ -q     # the capability harness (regression gate)
 python -m o0.main              # run one flywheel iteration (observe→verify→promote)
 python -m o0.main --ledger     # verify every ledger record's sha256 integrity
+python -m o0.main --index-vault    # index O0-DIRECTORY memory allocation
+python -m o0.main --research "MCTS topology"  # search O0's local memory index
+python -m o0.main --ml-research "transformer architecture"  # explicit HORIZONTAL ML recall
 ```
+
+O0 indexes its own `O0-DIRECTORY/O0-DIRECTORY` allocation by default; override
+the root with `O0_DIRECTORY_PATH`. `--research` searches this local index and
+builds it on first use; when invoked with the current directory inside the
+HORIZONTAL repository, it uses HORIZONTAL recall instead. Use `--ml-research`
+(or `--horizontal-recall`) to explicitly search HORIZONTAL for ML/research
+information from O0. Set `HORIZONTAL_ROOT` or `HORIZONTAL_SCRIPTS_DIR` to
+override the sibling repository paths.
 
 ## Principles
 

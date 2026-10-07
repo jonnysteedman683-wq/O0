@@ -12,7 +12,9 @@ from o0.memory import Memory
 from o0.probes import (AgencyProbe, CodegenProbe, MemoryProbe, ReasoningProbe,
                        ToolUseProbe, run_all_probes)
 from o0.reasoning import ReasoningLoop
-from o0.research import VaultIndex, _parse_frontmatter, _tokens
+from o0.research import (DEFAULT_VAULT, HORIZONTAL_ROOT, HorizontalRecall, VaultIndex,
+                         running_from_horizontal,
+                         _parse_frontmatter, _tokens)
 from o0.selfhost import Candidate, SelfHost
 from o0 import gitops
 
@@ -246,6 +248,115 @@ def test_vault_persist_reload(vault, tmp_path):
                       index_path=tmp_path / "idx3.json")
     assert idx2.load() is True
     assert len(idx2.notes) == 2
+
+
+def test_default_research_root_is_o0_directory():
+    assert DEFAULT_VAULT == gitops.REPO_ROOT / "O0-DIRECTORY" / "O0-DIRECTORY"
+
+
+def test_horizontal_runtime_detection_is_scoped_to_horizontal_root(tmp_path):
+    horizontal = tmp_path / "HORIZONTAL"
+    nested = horizontal / "_Meta" / "Scripts"
+    outside = tmp_path / "O0"
+    assert running_from_horizontal(nested, horizontal)
+    assert not running_from_horizontal(outside, horizontal)
+
+
+def test_vault_index_rejects_cache_for_different_root(tmp_path):
+    index_file = tmp_path / "idx.json"
+    index_file.write_text(json.dumps({
+        "vault": str(tmp_path / "HORIZONTAL"),
+        "notes": [{"title": "must not leak into O0 recall"}],
+    }), encoding="utf-8")
+    index = VaultIndex(vault_path=tmp_path / "O0-DIRECTORY", index_path=index_file)
+    assert index.load() is False
+    assert index.notes == []
+
+
+def test_horizontal_recall_forwards_query_and_limit():
+    calls = []
+
+    class FakeEngine:
+        def search(self, query, top_k):
+            calls.append((query, top_k))
+            return [{"title": "verified result"}]
+
+    recall = HorizontalRecall(engine=FakeEngine())
+    assert recall.search("agent memory", limit=4) == [{"title": "verified result"}]
+    assert calls == [("agent memory", 4)]
+
+
+@pytest.mark.parametrize(("query", "limit"), [("", 5), ("   ", 5), ("valid", 0)])
+def test_horizontal_recall_rejects_invalid_query_or_limit(query, limit):
+    with pytest.raises(ValueError):
+        HorizontalRecall(engine=object()).search(query, limit=limit)
+
+
+def test_horizontal_recall_cli_is_explicit(monkeypatch, capsys):
+    import o0.main as main_module
+
+    class FakeRecall:
+        def search(self, query):
+            assert query == "autonomous agent"
+            return [{"title": "HORIZONTAL result"}]
+
+    monkeypatch.setattr(main_module, "HorizontalRecall", FakeRecall)
+    assert main_module.main(["--horizontal-recall", "autonomous agent"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"title": "HORIZONTAL result"}]
+
+
+@pytest.mark.parametrize("flag", ["--ml-research", "--horizontal-recall"])
+def test_ml_research_flags_use_horizontal(monkeypatch, capsys, flag):
+    import o0.main as main_module
+
+    class FakeRecall:
+        def search(self, query):
+            assert query == "transformer architecture"
+            return [{"title": "HORIZONTAL ML result"}]
+
+    monkeypatch.setattr(main_module, "HorizontalRecall", FakeRecall)
+    assert main_module.main([flag, "transformer architecture"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"title": "HORIZONTAL ML result"}]
+
+
+def test_local_research_cli_indexes_and_searches_o0_directory(monkeypatch, capsys):
+    import o0.main as main_module
+
+    calls = []
+
+    class FakeIndex:
+        def index(self):
+            calls.append("index")
+
+        def search(self, query):
+            calls.append(("search", query))
+            return [{"title": "O0 memory result"}]
+
+    monkeypatch.setattr(main_module, "VaultIndex", FakeIndex)
+    monkeypatch.setattr(main_module, "running_from_horizontal", lambda: False)
+    monkeypatch.setattr(main_module, "HorizontalRecall", lambda: pytest.fail(
+        "local research must not invoke HORIZONTAL"
+    ))
+    assert main_module.main(["--research", "MCTS topology"]) == 0
+    assert calls == ["index", ("search", "MCTS topology")]
+    assert json.loads(capsys.readouterr().out) == [{"title": "O0 memory result"}]
+
+
+def test_research_cli_uses_horizontal_inside_horizontal_runtime(monkeypatch, capsys):
+    import o0.main as main_module
+
+    class FakeRecall:
+        def search(self, query):
+            assert query == "local research question"
+            return [{"title": "HORIZONTAL runtime result"}]
+
+    monkeypatch.setattr(main_module, "running_from_horizontal", lambda: True)
+    monkeypatch.setattr(main_module, "HorizontalRecall", FakeRecall)
+    monkeypatch.setattr(main_module, "VaultIndex", lambda: pytest.fail(
+        "HORIZONTAL runtime should use HORIZONTAL recall"
+    ))
+    assert main_module.main(["--research", "local research question"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"title": "HORIZONTAL runtime result"}]
 
 
 # -- capability probes ------------------------------------------------------
