@@ -214,6 +214,15 @@ def test_frontmatter_parser():
     assert fm["tags"] == ["a", "b"]
 
 
+def test_frontmatter_parser_handles_multiline_spatial_metadata():
+    fm = _parse_frontmatter(
+        '---\ntitle: "Station note"\nquick_paths:\n  - ML_STATION_MAP\n'
+        '  - [[MAMBA_SELECTIVE_SSM]]\ntags: [ml, memory]\n---\nbody'
+    )
+    assert fm["quick_paths"] == ["ML_STATION_MAP", "[[MAMBA_SELECTIVE_SSM]]"]
+    assert fm["tags"] == ["ml", "memory"]
+
+
 def test_tokens_stemming():
     # plural/singular recall: "superconductor" matches "superconductors"
     assert "superconductor" in _tokens("superconductors")
@@ -229,6 +238,65 @@ def test_vault_index_and_search(vault, tmp_path):
     hits = idx.search("evidential uncertainty")
     assert hits and "Evidential" in hits[0]["title"]
     assert hits[0]["wikilinks"] == ["Related Note"]
+
+
+def test_index_extracts_station_priority_quick_paths_and_date(tmp_path):
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+    note_path = memory_root / "station-note.md"
+    note_path.write_text(
+        '---\ntitle: "Station Architecture"\nstation: "ML"\npriority: 8\n'
+        'quick_paths:\n  - MAMBA_SELECTIVE_SSM\ntags: [state_space]\n'
+        'created: "2026-10-08"\n---\nNeural architecture notes.\n',
+        encoding="utf-8",
+    )
+    idx = VaultIndex(vault_path=memory_root, index_path=tmp_path / "spatial.json")
+    idx.index()
+    note = next(item for item in idx.notes if item["title"] == "Station Architecture")
+    assert note["station"] == "ML"
+    assert note["priority"] == 8
+    assert note["quick_paths"] == ["MAMBA_SELECTIVE_SSM"]
+    assert note["created"] == "2026-10-08"
+
+
+def test_search_weights_title_spatial_links_and_station_relevance(tmp_path):
+    idx = VaultIndex(vault_path=tmp_path, index_path=tmp_path / "unused.json")
+    idx.notes = [
+        {
+            "rel": "stations/ml.md", "title": "MAMBA_SELECTIVE_SSM",
+            "abstract": "Selective state-space model", "tags": ["ssm"],
+            "station": "ML", "priority": 8,
+            "quick_paths": ["ML_STATION_MAP"], "wikilinks": [], "created": "",
+        },
+        {
+            "rel": "reports/task.md", "title": "Task report",
+            "abstract": "Mamba state-space discussion", "tags": [],
+            "station": "TASKS", "priority": 9,
+            "quick_paths": [], "wikilinks": ["MAMBA_SELECTIVE_SSM"], "created": "",
+        },
+    ]
+    results = idx.search("ML Mamba SSM", limit=2)
+    assert results[0]["rel"] == "stations/ml.md"
+    assert results[0]["score"] > results[1]["score"]
+
+
+def test_search_is_deterministic_and_validates_inputs(tmp_path):
+    idx = VaultIndex(vault_path=tmp_path, index_path=tmp_path / "unused.json")
+    idx.notes = [{
+        "rel": "b.md", "title": "Mamba SSM", "abstract": "state space",
+        "tags": [], "station": "ML", "priority": 8, "quick_paths": [],
+        "wikilinks": [], "created": "2026-10-08",
+    }, {
+        "rel": "a.md", "title": "Mamba SSM", "abstract": "state space",
+        "tags": [], "station": "ML", "priority": 8, "quick_paths": [],
+        "wikilinks": [], "created": "2026-10-08",
+    }]
+    assert idx.search("Mamba SSM") == idx.search("Mamba SSM")
+    assert [item["rel"] for item in idx.search("Mamba SSM")] == ["a.md", "b.md"]
+    with pytest.raises(ValueError):
+        idx.search(" ")
+    with pytest.raises(ValueError):
+        idx.search("Mamba", limit=0)
 
 
 def test_vault_topics(vault, tmp_path):
@@ -262,13 +330,22 @@ def test_horizontal_runtime_detection_is_scoped_to_horizontal_root(tmp_path):
     assert not running_from_horizontal(outside, horizontal)
 
 
-def test_vault_index_rejects_cache_for_different_root(tmp_path):
+def test_vault_index_rejects_cache_for_different_root_or_version(tmp_path):
     index_file = tmp_path / "idx.json"
     index_file.write_text(json.dumps({
+        "version": 2,
         "vault": str(tmp_path / "HORIZONTAL"),
         "notes": [{"title": "must not leak into O0 recall"}],
     }), encoding="utf-8")
     index = VaultIndex(vault_path=tmp_path / "O0-DIRECTORY", index_path=index_file)
+    assert index.load() is False
+    assert index.notes == []
+
+    index_file.write_text(json.dumps({
+        "version": 1,
+        "vault": str(tmp_path / "O0-DIRECTORY"),
+        "notes": [{"title": "stale schema"}],
+    }), encoding="utf-8")
     assert index.load() is False
     assert index.notes == []
 

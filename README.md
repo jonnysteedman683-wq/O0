@@ -17,10 +17,11 @@ python -m o0.main --ml-research "transformer architecture"  # explicit HORIZONTA
 ```
 
 O0 indexes its own `O0-DIRECTORY/O0-DIRECTORY` allocation by default; override
-the root with `O0_DIRECTORY_PATH`. `--research` searches this local index and
-builds it on first use; when invoked with the current directory inside the
-HORIZONTAL repository, it uses HORIZONTAL recall instead. Use `--ml-research`
-(or `--horizontal-recall`) to explicitly search HORIZONTAL for ML/research
+the root with `O0_DIRECTORY_PATH`. `--research` refreshes that local index and
+ranks notes using title/body/tags, station and wikilink routing, priority, and
+date-level recency. When invoked with the current directory inside HORIZONTAL,
+it uses HORIZONTAL recall instead. Use `--ml-research` (or
+`--horizontal-recall`) to explicitly search HORIZONTAL for ML/research
 information from O0. Set `HORIZONTAL_ROOT` or `HORIZONTAL_SCRIPTS_DIR` to
 override the sibling repository paths.
 
