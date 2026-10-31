@@ -17,7 +17,8 @@ promotion.
 ## Layout
 
 - `probes/` — new capability probes (mirror `o0/probes.py`).
-- `connectors/` — new cross-stack connectors (mirror `o0/agency.py`).
+- `connectors/` — cross-stack connectors (mirror `o0/agency.py`): UniSync ledger,
+  GitHub stack probes and human-gated dispatch. See `docs/antigravity/guides/connectors.md`.
 - `reporting/` — modules that read `state/ledger.jsonl` and render O0's
   capability trajectory.
 
