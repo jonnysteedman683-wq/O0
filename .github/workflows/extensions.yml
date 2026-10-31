@@ -1,0 +1,28 @@
+# Extensions CI: runs the Antigravity-territory test suite on every PR and push to master.
+# Core tests (tests/test_core.py) are not run here: they append to state/*.jsonl, Hermes's
+# append-only records, and core is Hermes's territory (AGENTS.md).
+name: extensions
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extensions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --quiet pytest
+      - run: python -m pytest tests/extensions -q
