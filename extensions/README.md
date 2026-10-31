@@ -19,6 +19,9 @@ promotion.
 - `probes/` — new capability probes (mirror `o0/probes.py`).
 - `connectors/` — cross-stack connectors (mirror `o0/agency.py`): UniSync ledger,
   GitHub stack probes and human-gated dispatch. See `docs/antigravity/guides/connectors.md`.
+- `mesh/` — async, self-healing multi-agent engine: HLC + CRDT replicated state, typed
+  envelopes over bounded mailboxes, supervisor/watchdog, sandboxed cost-aware tool runtime,
+  DAG orchestrator. Stdlib-only, `mypy --strict`. See `docs/antigravity/guides/agent_mesh.md`.
 - `reporting/` — modules that read `state/ledger.jsonl` and render O0's
   capability trajectory.
 
