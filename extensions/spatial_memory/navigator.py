@@ -39,13 +39,23 @@ def _parse_frontmatter(text: str) -> dict[str, Any]:
     return fm
 
 
+REPO_VAULT_PATH = Path(__file__).resolve().parents[2] / "O0-DIRECTORY" / "O0-DIRECTORY"
+
 CANDIDATE_VAULT_PATHS = [
+    # The vault inside this checkout: on Jonny's PC this is the same Desktop/O0 folder, and it
+    # also works on Linux/CI and other machines.
+    REPO_VAULT_PATH,
     Path("C:/Users/jonny/OneDrive/Desktop/O0/O0-DIRECTORY/O0-DIRECTORY"),
     Path("C:/Users/jonny/OneDrive/Desktop/O0/O0-DIRECTORY"),
     Path("C:/Users/jonny/OneDrive/Desktop/O0-DIRECTORY"),
 ]
 
+
 def _resolve_default_vault() -> Path:
+    """``O0_DIRECTORY_PATH`` (same override as core), else the first candidate that exists."""
+    override = os.environ.get("O0_DIRECTORY_PATH", "").strip()
+    if override:
+        return Path(override)
     for p in CANDIDATE_VAULT_PATHS:
         if p.exists():
             return p
