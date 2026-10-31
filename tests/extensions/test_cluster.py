@@ -1,11 +1,13 @@
 """Unit tests for O0 Multi-Computer Cluster Architecture."""
 
+import shutil
 import time
 from pathlib import Path
 
 from extensions.cluster.config import ClusterConfig
 from extensions.cluster.mesh import ClusterMesh
 from extensions.cluster.node import ClusterNode
+from extensions.spatial_memory.navigator import REPO_VAULT_PATH
 
 
 def test_cluster_config_load_and_save(tmp_path: Path):
@@ -61,8 +63,13 @@ def test_cluster_node_daemon_ping_and_auth():
         node.stop()
 
 
-def test_cluster_mesh_dispatch_and_fallback():
+def test_cluster_mesh_dispatch_and_fallback(tmp_path: Path):
+    # Local fallback writes a task report into the vault; use a copy so the real
+    # O0-DIRECTORY is never touched by a test run.
+    vault = tmp_path / "vault"
+    shutil.copytree(REPO_VAULT_PATH, vault, ignore=shutil.ignore_patterns("REPORTS", ".obsidian"))
     config = ClusterConfig(
+        vault_path=str(vault),
         node_id="standalone_node",
         role="HYBRID",
         listen_host="127.0.0.1",
@@ -77,3 +84,4 @@ def test_cluster_mesh_dispatch_and_fallback():
     assert res["dispatched_remote"] is False
     assert res["peer_node_id"] == "standalone_node"
     assert res["result"]["passed"] is True
+    assert Path(res["result"]["report_path"]).is_relative_to(vault)
