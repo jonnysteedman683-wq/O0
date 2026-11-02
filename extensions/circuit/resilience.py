@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import ast
 import json
+import os
+import subprocess
+import sys
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -166,34 +169,25 @@ class ResilientCircuitBreaker:
         attempts += 1
         if simulate_failure_tier != 3 and not (simulate_failure_tier and simulate_failure_tier > 3):
             if code_payload and code_payload.strip():
-                try:
-                    repaired_code = self._repair_code_ast(code_payload)
-                    local_scope: Dict[str, Any] = {}
-                    exec(repaired_code, {}, local_scope)
-                    # Look for entrypoint callable in repaired module
-                    repaired_fn = None
-                    for val in local_scope.values():
-                        if callable(val):
-                            repaired_fn = val
-                            break
-
-                    if repaired_fn:
-                        res_repaired = repaired_fn(*args, **kwargs)
-                        self.stats["tier3_success"] += 1
-                        return CircuitBreakerResult(
-                            success=True,
-                            result=res_repaired,
-                            tier="TIER_3_QUORUM_REPAIR",
-                            attempts=attempts,
-                            duration_sec=round(time.perf_counter() - t_start, 4),
-                            diagnostics={
-                                "repaired_ast": True,
-                                "tier1_error": tier1_error,
-                                "tier2_error": tier2_error,
-                            },
-                        )
-                except Exception as e_tier3:
-                    tier3_error = f"AST repair failed: {e_tier3}"
+                repaired_code = self._repair_code_ast(code_payload)
+                ok, res_repaired, tier3_error = _run_isolated(
+                    repaired_code, args, kwargs, timeout_sec=self.timeout_sec
+                )
+                if ok:
+                    self.stats["tier3_success"] += 1
+                    return CircuitBreakerResult(
+                        success=True,
+                        result=res_repaired,
+                        tier="TIER_3_QUORUM_REPAIR",
+                        attempts=attempts,
+                        duration_sec=round(time.perf_counter() - t_start, 4),
+                        diagnostics={
+                            "repaired_ast": True,
+                            "isolated": True,
+                            "tier1_error": tier1_error,
+                            "tier2_error": tier2_error,
+                        },
+                    )
             else:
                 tier3_error = "No code payload supplied for AST repair"
         else:
@@ -270,3 +264,91 @@ class ResilientCircuitBreaker:
             return log_file
         except Exception:
             return self.quarantine_dir / "quarantine_write_failed.log"
+
+
+# ----------------------------------------------------------------------------------------------
+# Tier 3 isolation
+#
+# Repaired code is untrusted (it is whatever payload the caller supplied, AST-rewritten). It used
+# to run via exec() inside O0's own process with full builtins: any payload could read secrets
+# from the environment, mutate interpreter state, or hang the caller. It now runs in a fresh
+# `python -I` child with a scrubbed environment, POSIX memory/CPU rlimits, a hard wall-clock
+# timeout (child killed), and a JSON-only boundary for args and results.
+#
+# This is process isolation, not a hostile-code security sandbox (no filesystem/network jail).
+# ----------------------------------------------------------------------------------------------
+
+_TIER3_CHILD = r"""
+import json, sys
+req = json.loads(sys.stdin.read())
+ns = {}
+exec(compile(req["code"], "<tier3-repaired>", "exec"), ns)
+fn = next((v for k, v in ns.items() if not k.startswith("__") and callable(v)), None)
+if fn is None:
+    sys.stdout.write(json.dumps({"ok": False, "error": "repaired code defines no callable"}))
+else:
+    out = fn(*req["args"], **req["kwargs"])
+    try:
+        sys.stdout.write(json.dumps({"ok": True, "result": out}, allow_nan=False))
+    except (TypeError, ValueError) as exc:
+        sys.stdout.write(json.dumps({"ok": False, "error": "result not JSON-serializable: %s" % exc}))
+"""
+
+_TIER3_ENV_ALLOW = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT")
+
+
+def _tier3_limits(mem_mb: int = 512, cpu_s: int = 30) -> Optional[Callable[[], None]]:
+    if os.name != "posix":
+        return None
+
+    def apply() -> None:
+        try:
+            import resource
+
+            mem = mem_mb * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+            resource.setrlimit(resource.RLIMIT_CPU, (cpu_s, cpu_s))
+        except (ImportError, ValueError, OSError):
+            pass
+
+    return apply
+
+
+def _run_isolated(
+    code: str,
+    args: tuple,
+    kwargs: Dict[str, Any],
+    *,
+    timeout_sec: float,
+) -> tuple[bool, Any, str]:
+    """Run repaired code in an isolated child. Returns (ok, result, error). Never raises."""
+    try:
+        request = json.dumps({"code": code, "args": list(args), "kwargs": kwargs}, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        return False, None, f"Tier 3 isolation: args not JSON-serializable: {exc}"
+    env = {k: os.environ[k] for k in _TIER3_ENV_ALLOW if k in os.environ}
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-I", "-c", _TIER3_CHILD],
+            input=request,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+            env=env,
+            preexec_fn=_tier3_limits(),
+        )
+    except subprocess.TimeoutExpired:
+        return False, None, f"Tier 3 isolation: repaired code exceeded {timeout_sec}s (killed)"
+    except OSError as exc:
+        return False, None, f"Tier 3 isolation: could not start child: {exc}"
+    if proc.returncode != 0:
+        tail = (proc.stderr.strip().splitlines() or ["no stderr"])[-1][:300]
+        return False, None, f"AST repair failed in isolation (exit {proc.returncode}): {tail}"
+    try:
+        reply = json.loads(proc.stdout)
+    except ValueError:
+        return False, None, "Tier 3 isolation: child wrote non-JSON output"
+    if not isinstance(reply, dict) or not reply.get("ok"):
+        err = reply.get("error") if isinstance(reply, dict) else "malformed reply"
+        return False, None, f"AST repair failed: {err}"
+    return True, reply.get("result"), ""

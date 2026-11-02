@@ -35,11 +35,11 @@ Supervisor/tool telemetry counters could become `[VERIFIED]` evidence in ledger 
 vibes) and value 4 (append-only ledger) — it must be Hermes-authored, with the counters
 reproduced by a deterministic probe rather than copied from a live run.
 
-## 5. Harden `extensions/circuit` Tier 3 (Antigravity can do this; flagged here for visibility)
+## 5. Harden `extensions/circuit` Tier 3 — **done** (`agy/test-isolation-and-tier3-sandbox`)
 
 `ResilientCircuitBreaker` Tier 3 calls `exec()` on a repaired code payload in-process with full
-builtins. That is arbitrary code execution inside O0. Recommended: route Tier 3 through
-`subprocess_tool` (isolated process, scrubbed env, rlimits, hard kill), keeping the 4-tier ladder.
+builtins. That is arbitrary code execution inside O0. Tier 3 now runs repaired code in an isolated `python -I`
+child (scrubbed env, rlimits, hard kill on timeout, JSON-only boundary), keeping the 4-tier ladder.
 
 ## Non-goals
 

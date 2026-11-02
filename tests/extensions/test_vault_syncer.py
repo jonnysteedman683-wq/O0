@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from extensions.spatial_memory import SynapticReasoningLoop, VaultSyncer
+from o0.memory import Memory
 
 
 def test_vault_syncer_writes_markdown_report(tmp_path: Path):
@@ -31,7 +32,9 @@ def test_vault_syncer_writes_markdown_report(tmp_path: Path):
 def test_synaptic_reasoning_loop_executes_and_reports(tmp_path: Path):
     vault = tmp_path / "vault"
     syncer = VaultSyncer(vault_path=vault)
-    loop = SynapticReasoningLoop(syncer=syncer)
+    # Isolated memory: the default Memory() appends to state/memory.jsonl (Hermes's record).
+    memory = Memory(episodic_path=tmp_path / "memory.jsonl", skills_dir=tmp_path / "skills")
+    loop = SynapticReasoningLoop(memory=memory, syncer=syncer)
 
     res = loop.run(
         task="python -c \"print('unit_test_passed')\"",
@@ -46,3 +49,4 @@ def test_synaptic_reasoning_loop_executes_and_reports(tmp_path: Path):
     text = report_file.read_text(encoding="utf-8")
     assert "Tested self-modification verification logic." in text
     assert "station: TESTS" in text
+    assert (tmp_path / "memory.jsonl").exists()
