@@ -513,8 +513,10 @@ def test_orchestrator_dispatch(agency):
 
 
 def test_stack_connector_fail_open(tmp_path):
-    # reachable platform
-    c = StackConnector("HORIZONTAL", "C:/Users/jonny/OneDrive/Desktop/HORIZONTAL")
+    # reachable platform (any existing dir; not tied to one machine)
+    root = tmp_path / "HORIZONTAL"
+    root.mkdir()
+    c = StackConnector("HORIZONTAL", str(root))
     assert c.status()["reachable"] is True
     # missing platform -> fail-open, not an error
     c2 = StackConnector("MISSING", str(tmp_path / "nope"))
